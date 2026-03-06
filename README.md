@@ -59,9 +59,10 @@ You will also need access to the SAM‑3 weights via Hugging Face; make sure you
   - `utils.py`: Helper functions like `mask_to_polygon`.
   - `__init__.py`: Public API for the package.
 - **`examples.py`**: Script with multiple example workflows (batch processing, custom exports, visualization, etc.).
+- **`processing.py`**: Higher‑level workflows and utilities (box prompts, exemplar search, custom COCO export).
 - **`sam.py`**: Simple wrapper script that runs a default segmentation pipeline on the `images/` directory.
 - **`images/`**: Example images and (optionally) saved outputs.
-- **`output/`**: Example target directory for exported annotations (created automatically as needed).
+- **`output/`**: Default target directory for exported annotations and overlays (created automatically as needed).
 - **`label_images.py`**: (Experimental) Tkinter/OpenCV GUI skeleton for manual/assisted labeling.
 
 ---
@@ -81,10 +82,55 @@ By default, this will:
 - Look for images in `images/`.
 - Run the SAM‑based segmentation using the configured text prompts / labels.
 - Save:
-  - COCO annotations (e.g. `annotations_coco.json`) into `images/`.
-  - Overlay images into `images/segmented_images/`.
+  - COCO annotations (e.g. `annotations_coco.json`) into the chosen `output_dir` (often `output/`).
+  - Overlay images into an overlay subfolder (e.g. `output/segmented_images/`).
 
 Check `sam.py` if you want to change prompts, labels, or output directories.
+
+---
+
+## Visual box prompts and exemplar‑based search
+
+The project supports **visual (box) prompts** and a simple exemplar‑based search workflow via `processing.py`.
+
+- **Configure the object and box** in `processing.py`:
+
+```python
+OBJECT = "pole"  # label / text prompt for your object
+box_prompt = [x, y, w, h]  # box in pixels, from the top‑left corner
+```
+
+- **Box‑prompt batch processing**:
+
+```python
+from processing import box_prompt_batch_processing
+
+box_prompt_batch_processing()
+```
+
+This uses only the **visual box prompt** (no text) across the `images/` directory and writes:
+
+- An `annotations_coco.json` file into `output/`.
+- Overlay images (with masks and the cyan prompt box drawn on the reference image) into `output/segmented_images/`.
+
+- **Exemplar‑based search** (mask from one image, then “find similar” in others):
+
+```python
+from pathlib import Path
+from processing import find_similar_objects_by_example
+
+matches = find_similar_objects_by_example(
+    ref_image=Path("images/1pole-down.jpg"),  # image where you drew the box_prompt
+    hist_threshold=0.7,                       # loosen/tighten similarity
+)
+```
+
+This does:
+
+- Runs SAM‑3 with the **box prompt** on `ref_image` to obtain a reference mask.
+- Computes a simple appearance descriptor (color histogram) from that mask.
+- Runs SAM‑3 with the **text prompt** `OBJECT` on all images and keeps only detections whose appearance is sufficiently similar to the reference.
+- Returns a list of `(SegmentationResult, similarity)` for images that contain at least one similar object and saves overlays/COCO into `output/`.
 
 ---
 
@@ -138,7 +184,7 @@ This will:
 
 - Write a single COCO JSON file to `output/`.
 - Write per‑image LabelMe JSON files (alongside images or into the chosen output directory).
-- Save overlays (by default under an `overlay` or `segmented_images` subdirectory).
+- Save overlays (by default under a subdirectory like `output/segmented_images/`).
 
 ### Manual COCO export
 
