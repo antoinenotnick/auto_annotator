@@ -10,10 +10,10 @@ from sam_segmentation.utils import load_image_with_exif
 SCRIPT_DIR = Path(__file__).parent
 
 # Image to process for visual or text‑prompt examples
-IMG_PATH = SCRIPT_DIR / "images" / "<IMAGE NAME HERE>.jpg"
+IMG_PATH = SCRIPT_DIR / "images" / "wire_vegetation.jpg"
 
 # Object label / text prompt
-OBJECT = "<OBJECT NAME HERE>"
+OBJECT = "vegetation on wires"
 
 # Fallback visual prompt: (x, y, w, h) in pixels from top‑left corner
 box_prompt = [0.0, 0.0, 0.0, 0.0]
@@ -332,7 +332,7 @@ def export_to_coco(results):
         category_name=OBJECT,
         dataset_name="My Dataset",
     )
-    exporter.export(results, "annotations.json")
+    exporter.export([results], "annotations.json")
 
 
 def custom_export():
@@ -371,8 +371,10 @@ def main():
     Uncomment exactly one workflow below to run it.
     """
 
-    single_image_processing_with_text_prompt()
-    # single_image_processing_with_box_prompt()
+    # Missing some export to coco functions that could be a pain for users
+
+    # single_image_processing_with_text_prompt()
+    export_to_coco(single_image_processing_with_box_prompt())
     # text_prompt_batch_processing()
     # box_prompt_batch_processing()
     # find_similar_objects_by_example()
