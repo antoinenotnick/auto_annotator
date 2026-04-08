@@ -9,11 +9,11 @@ from sam_segmentation.utils import load_image_with_exif
 # Get the directory where this script is located
 SCRIPT_DIR = Path(__file__).parent
 
-# Image to process for visual or text‑prompt examples
-IMG_PATH = SCRIPT_DIR / "images" / "wire_vegetation.jpg"
+# Image to process for specific visual or text‑prompt examples
+IMG_PATH = SCRIPT_DIR / "images" / "_test.jpg"
 
 # Object label / text prompt
-OBJECT = "vegetation on wires"
+OBJECT = "Trailer door open"
 
 # Fallback visual prompt: (x, y, w, h) in pixels from top‑left corner
 box_prompt = [0.0, 0.0, 0.0, 0.0]
@@ -85,7 +85,50 @@ def select_box_prompt(image_path: Path) -> list[float] | None:
             cv2.destroyWindow(window_name)
             return None
 
-def single_image_processing_with_text_prompt():
+def export_to_coco(results):
+    """
+    Export a list of segmentation results to a COCO JSON file.
+
+    Args:
+        results: List of `SegmentationResult` objects to export.
+    """
+    exporter = COCOExporter(
+        category_name=OBJECT,
+        dataset_name="My Dataset",
+    )
+    exporter.export([results], "annotations.json")
+
+
+def custom_export():
+    """
+    Process a directory without automatic exports, then export with custom COCO settings.
+
+    This shows how to decouple segmentation from export configuration.
+    """
+    print("\n" + "=" * 60)
+    print("Custom Export")
+    print("=" * 60)
+
+    # Process without automatic exports (pass empty list)
+    segmenter = SAMSegmenter(
+        text_prompt=OBJECT,
+        export_format=[],  # No automatic exports
+        save_overlay=True,
+    )
+
+    results = segmenter.process_directory(SCRIPT_DIR / "images")
+
+    # Custom COCO export with different settings
+    exporter = COCOExporter(
+            category_name=OBJECT,
+        dataset_name=OBJECT + " dataset",
+        polygon_tolerance=1.5,  # More precise polygons
+    )
+    exporter.export(results, SCRIPT_DIR / "output" / "custom_coco.json")
+    print("Custom COCO export complete")
+
+
+def text_prompt_single_image_processing():
     """
     Process a single image using only a text prompt.
 
@@ -110,6 +153,8 @@ def single_image_processing_with_text_prompt():
     print(f"Size: {result.image_size[0]}x{result.image_size[1]}")
     print(f"Detections: {result.num_detections}")
     print(f"Scores: {result.scores}")
+
+    export_to_coco(result)
 
     return result
 
@@ -149,6 +194,8 @@ def single_image_processing_with_box_prompt():
     print(f"Detections: {result.num_detections}")
     print(f"Scores: {result.scores}")
 
+    export_to_coco(result)
+
     return result
 
 
@@ -177,20 +224,9 @@ def text_prompt_batch_processing():
     for res in results:
         print(f"  - {res.image_path.name}: {res.num_detections} detections")
 
+    export_to_coco(results)
+
     return results 
-
-
-def box_prompt_batch_processing():
-    """
-    Batch processing using a visual exemplar selected on the reference image.
-
-    Steps:
-      1) Show the reference image (`IMG_PATH`) and let the user draw a box.
-      2) Use that box as a visual prompt to get a mask on the reference image.
-      3) Run text‑prompt segmentation on all images and keep only objects that
-         look similar to the reference mask (via color‑histogram similarity).
-    """
-    return find_similar_objects_by_example(ref_image=IMG_PATH)
 
 
 def _compute_mask_histogram(image_array: np.ndarray, mask: np.ndarray) -> np.ndarray | None:
@@ -225,8 +261,8 @@ def _compute_mask_histogram(image_array: np.ndarray, mask: np.ndarray) -> np.nda
     return hist.flatten()
 
 
-def find_similar_objects_by_example(
-    ref_image: Path | None = None,
+def box_prompt_batch_processing(
+    ref_image=IMG_PATH,
     hist_threshold: float = 0.7,
 ):
     """
@@ -318,50 +354,9 @@ def find_similar_objects_by_example(
     for res, sim in matches:
         print(f"  - {res.image_path.name}: best similarity {sim:.3f}")
 
+    export_to_coco(matches)
+
     return matches
-
-
-def export_to_coco(results):
-    """
-    Export a list of segmentation results to a COCO JSON file.
-
-    Args:
-        results: List of `SegmentationResult` objects to export.
-    """
-    exporter = COCOExporter(
-        category_name=OBJECT,
-        dataset_name="My Dataset",
-    )
-    exporter.export([results], "annotations.json")
-
-
-def custom_export():
-    """
-    Process a directory without automatic exports, then export with custom COCO settings.
-
-    This shows how to decouple segmentation from export configuration.
-    """
-    print("\n" + "=" * 60)
-    print("Custom Export")
-    print("=" * 60)
-
-    # Process without automatic exports (pass empty list)
-    segmenter = SAMSegmenter(
-        text_prompt=OBJECT,
-        export_format=[],  # No automatic exports
-        save_overlay=True,
-    )
-
-    results = segmenter.process_directory(SCRIPT_DIR / "images")
-
-    # Custom COCO export with different settings
-    exporter = COCOExporter(
-            category_name=OBJECT,
-        dataset_name=OBJECT + " dataset",
-        polygon_tolerance=1.5,  # More precise polygons
-    )
-    exporter.export(results, SCRIPT_DIR / "output" / "custom_coco.json")
-    print("Custom COCO export complete")
 
 
 def main():
@@ -373,12 +368,11 @@ def main():
 
     # Missing some export to coco functions that could be a pain for users
 
-    # single_image_processing_with_text_prompt()
-    export_to_coco(single_image_processing_with_box_prompt())
+    # text_promptsingle_image_processing()
+    # single_image_processing_with_box_prompt()
     # text_prompt_batch_processing()
-    # box_prompt_batch_processing()
-    # find_similar_objects_by_example()
-    # export_to_coco(text_prompt_batch_processing())
+    box_prompt_batch_processing()
+    # text_prompt_batch_processing()
     # custom_export()
 
 
