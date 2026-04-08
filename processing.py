@@ -10,10 +10,10 @@ from sam_segmentation.utils import load_image_with_exif
 SCRIPT_DIR = Path(__file__).parent
 
 # Image to process for specific visual or text‑prompt examples
-IMG_PATH = SCRIPT_DIR / "images" / "_test.jpg"
+IMG_PATH = SCRIPT_DIR / "images" / "pole_ex2.jpg"
 
 # Object label / text prompt
-OBJECT = "Trailer door open"
+OBJECT = "pole"
 
 # Fallback visual prompt: (x, y, w, h) in pixels from top‑left corner
 box_prompt = [0.0, 0.0, 0.0, 0.0]
@@ -120,7 +120,7 @@ def custom_export():
 
     # Custom COCO export with different settings
     exporter = COCOExporter(
-            category_name=OBJECT,
+        category_name=OBJECT,
         dataset_name=OBJECT + " dataset",
         polygon_tolerance=1.5,  # More precise polygons
     )
