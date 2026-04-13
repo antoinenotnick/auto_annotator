@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 
 from sam_segmentation import SAMSegmenter, COCOExporter
+from sam_segmentation.visualizer import OverlayVisualizer
 from sam_segmentation.utils import load_image_with_exif
 
 # Get the directory where this script is located
@@ -19,7 +20,7 @@ OBJECT = "pole"
 box_prompt = [0.0, 0.0, 0.0, 0.0]
 
 
-def select_box_prompt(image_path: Path) -> list[float] | None:
+def select_visual_box_prompt(image_path: Path) -> list[float] | None:
     """
     Open an interactive window to draw a visual box prompt on an image.
 
@@ -92,11 +93,29 @@ def export_to_coco(results):
     Args:
         results: List of `SegmentationResult` objects to export.
     """
+    print("\n" + "=" * 60)
+    print("Export to COCO")
+    print("=" * 60)
+
+    if results is None:
+        return
+
+    if not isinstance(results, list):
+        normalized_results = [results]
+    else:
+        normalized_results = results
+
+    if len(normalized_results) == 0:
+        print("No results to export to COCO.")
+        return
     exporter = COCOExporter(
         category_name=OBJECT,
         dataset_name="My Dataset",
     )
-    exporter.export([results], "annotations.json")
+
+    output_path = SCRIPT_DIR / "output" / "annotations.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    exporter.export(normalized_results, output_path)
 
 
 def custom_export():
@@ -136,7 +155,7 @@ def text_prompt_single_image_processing():
     saving outputs to `output/`.
     """
     print("\n" + "=" * 60)
-    print("Single Image Processing")
+    print("Single Image Processing with Text Prompt")
     print("=" * 60)
 
     segmenter = SAMSegmenter(
@@ -159,7 +178,7 @@ def text_prompt_single_image_processing():
     return result
 
 
-def single_image_processing_with_box_prompt():
+def visual_prompt_single_image_processing():
     """
     Process a single image using an interactive visual box prompt.
 
@@ -167,11 +186,11 @@ def single_image_processing_with_box_prompt():
     prompt to SAM3 for that image only.
     """
     print("\n" + "=" * 60)
-    print("Single Image Processing")
+    print("Single Image Processing with Visual Prompt")
     print("=" * 60)
 
     # Let the user draw a visual box prompt; fall back to the default if cancelled
-    user_box = select_box_prompt(IMG_PATH)
+    user_box = select_visual_box_prompt(IMG_PATH)
     current_box = user_box if user_box is not None else box_prompt
     if user_box is not None:
         print(f"Using user‑selected box_prompt: {current_box}")
@@ -284,7 +303,7 @@ def box_prompt_batch_processing(
         ref_image = IMG_PATH
 
     # 1) Let the user choose a visual box on the reference image (or fall back)
-    user_box = select_box_prompt(ref_image)
+    user_box = select_visual_box_prompt(ref_image)
     current_box = user_box if user_box is not None else box_prompt
     if user_box is not None:
         print(f"Using user‑selected box_prompt for exemplar: {current_box}")
@@ -354,9 +373,56 @@ def box_prompt_batch_processing(
     for res, sim in matches:
         print(f"  - {res.image_path.name}: best similarity {sim:.3f}")
 
-    export_to_coco(matches)
+    export_to_coco([res for res, _sim in matches])
 
     return matches
+
+def visual_prompt_batch_processing():
+    """
+    Batch-process all images by drawing a separate visual box prompt per image.
+
+    For each image in `SCRIPT_DIR / "images"`:
+      1) Show the image in an interactive window.
+      2) Let the user draw a box (or skip with ESC/q).
+      3) Run `SAMSegmenter` once for that image using only the box prompt.
+      4) Save overlays (with masks; the box is only used for prompting, not required in overlays).
+    """
+
+    print("\n" + "=" * 60)
+    print("Visual Prompt Batch Processing")
+    print("=" * 60)
+
+    images_dir = SCRIPT_DIR / "images"
+    image_paths = sorted(p for p in images_dir.iterdir() if p.is_file())
+    if not image_paths:
+        print(f"No images found in {images_dir}")
+        return []
+
+    results = []
+    for idx, image_path in enumerate(image_paths, start=1):
+        print(f"\n[{idx}/{len(image_paths)}] Selecting box for {image_path.name}")
+        user_box = select_visual_box_prompt(image_path)
+        current_box = user_box if user_box is not None else box_prompt
+        if user_box is not None:
+            print(f"Using user-selected box_prompt: {current_box}")
+        else:
+            print(f"No box selected; using fallback box_prompt: {current_box}")
+
+        segmenter = SAMSegmenter(
+            text_prompt=None,
+            box_prompt=current_box,
+            category_name=OBJECT or "object",
+            save_overlay=True,
+        )
+        result = segmenter.process_image(
+            image_path,
+            output_dir=SCRIPT_DIR / "output",
+        )
+        print(f"  -> {result.image_path.name}: {result.num_detections} detections")
+        results.append(result)
+
+    export_to_coco(results)
+    return results
 
 
 def main():
@@ -368,11 +434,11 @@ def main():
 
     # Missing some export to coco functions that could be a pain for users
 
-    # text_promptsingle_image_processing()
-    # single_image_processing_with_box_prompt()
+    # text_prompt_single_image_processing()
+    # visual_prompt_single_image_processing()
     # text_prompt_batch_processing()
+    # visual_prompt_batch_processing()
     box_prompt_batch_processing()
-    # text_prompt_batch_processing()
     # custom_export()
 
 
