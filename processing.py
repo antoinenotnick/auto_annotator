@@ -432,8 +432,6 @@ def main():
     Uncomment exactly one workflow below to run it.
     """
 
-    # Missing some export to coco functions that could be a pain for users
-
     # text_prompt_single_image_processing()
     # visual_prompt_single_image_processing()
     # text_prompt_batch_processing()
