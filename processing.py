@@ -14,13 +14,13 @@ SCRIPT_DIR = Path(__file__).parent
 IMG_PATH = SCRIPT_DIR / "images" / "pole_ex2.jpg"
 
 # Object label / text prompt
-OBJECT = ""
+OBJECT = "insulator"
 
 # Fallback visual prompt: (x, y, w, h) in pixels from top‑left corner
 box_prompt = [0.0, 0.0, 0.0, 0.0]
 
 
-def select_box_prompt(image_path: Path) -> list[float] | None:
+def select_visual_box_prompt(image_path: Path) -> list[float] | None:
     """
     Open an interactive window to draw a visual box prompt on an image.
 
@@ -93,6 +93,11 @@ def export_to_coco(results):
     Args:
         results: List of `SegmentationResult` objects to export.
     """
+    
+    print("\n" + "=" * 60)
+    print("Export to COCO")
+    print("=" * 60)
+
     if results is None:
         return
 
@@ -109,7 +114,10 @@ def export_to_coco(results):
         category_name=OBJECT,
         dataset_name="My Dataset",
     )
-    exporter.export(normalized_results, "annotations.json")
+
+    output_path = SCRIPT_DIR / "output" / "annotations.json"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    exporter.export(normalized_results, output_path)
 
 
 def custom_export():
@@ -149,7 +157,7 @@ def text_prompt_single_image_processing():
     saving outputs to `output/`.
     """
     print("\n" + "=" * 60)
-    print("Single Image Processing")
+    print("Single Image Processing with Text Prompt")
     print("=" * 60)
 
     segmenter = SAMSegmenter(
@@ -172,7 +180,7 @@ def text_prompt_single_image_processing():
     return result
 
 
-def single_image_processing_with_box_prompt():
+def visual_prompt_single_image_processing():
     """
     Process a single image using an interactive visual box prompt.
 
@@ -180,11 +188,11 @@ def single_image_processing_with_box_prompt():
     prompt to SAM3 for that image only.
     """
     print("\n" + "=" * 60)
-    print("Single Image Processing")
+    print("Single Image Processing with Visual Prompt")
     print("=" * 60)
 
     # Let the user draw a visual box prompt; fall back to the default if cancelled
-    user_box = select_box_prompt(IMG_PATH)
+    user_box = select_visual_box_prompt(IMG_PATH)
     current_box = user_box if user_box is not None else box_prompt
     if user_box is not None:
         print(f"Using user‑selected box_prompt: {current_box}")
@@ -218,6 +226,7 @@ def text_prompt_batch_processing():
 
     Uses `OBJECT` as the text prompt and writes outputs into `output/`.
     """
+
     print("=" * 60)
     print("Text Prompt Batch Processing")
     print("=" * 60)
@@ -242,39 +251,7 @@ def text_prompt_batch_processing():
     return results 
 
 
-def _compute_mask_histogram(image_array: np.ndarray, mask: np.ndarray) -> np.ndarray | None:
-    """
-    Compute a color histogram for the region defined by a binary mask.
-
-    Args:
-        image_array: RGB image as a NumPy array of shape (H, W, 3).
-        mask: Mask array (any shape broadcastable to (H, W)); values > 0.5
-              are treated as foreground.
-
-    Returns:
-        A 1D normalized histogram vector, or None if the mask is empty.
-    """
-    if mask.ndim > 2:
-        mask = mask.squeeze()
-
-    mask_bool = mask > 0.5
-    if not mask_bool.any():
-        return None
-
-    y_indices, x_indices = np.where(mask_bool)
-    y_min, y_max = int(y_indices.min()), int(y_indices.max())
-    x_min, x_max = int(x_indices.min()), int(x_indices.max())
-
-    patch = image_array[y_min : y_max + 1, x_min : x_max + 1]
-    patch_mask = mask_bool[y_min : y_max + 1, x_min : x_max + 1].astype("uint8") * 255
-
-    hsv = cv2.cvtColor(patch, cv2.COLOR_RGB2HSV)
-    hist = cv2.calcHist([hsv], [0, 1, 2], patch_mask, [8, 8, 8], [0, 180, 0, 256, 0, 256])
-    cv2.normalize(hist, hist)
-    return hist.flatten()
-
-
-def box_prompt_batch_processing():
+def visual_prompt_batch_processing():
     """
     Batch-process all images by drawing a separate visual box prompt per image.
 
@@ -284,6 +261,11 @@ def box_prompt_batch_processing():
       3) Run `SAMSegmenter` once for that image using only the box prompt.
       4) Save overlays (with masks; the box is only used for prompting, not required in overlays).
     """
+
+    print("\n" + "=" * 60)
+    print("Visual Prompt Batch Processing")
+    print("=" * 60)
+
     images_dir = SCRIPT_DIR / "images"
     image_paths = sorted(p for p in images_dir.iterdir() if p.is_file())
     if not image_paths:
@@ -293,7 +275,7 @@ def box_prompt_batch_processing():
     results = []
     for idx, image_path in enumerate(image_paths, start=1):
         print(f"\n[{idx}/{len(image_paths)}] Selecting box for {image_path.name}")
-        user_box = select_box_prompt(image_path)
+        user_box = select_visual_box_prompt(image_path)
         current_box = user_box if user_box is not None else box_prompt
         if user_box is not None:
             print(f"Using user-selected box_prompt: {current_box}")
@@ -329,11 +311,11 @@ def main():
 
     # Missing some export to coco functions that could be a pain for users
 
-    # text_promptsingle_image_processing()
-    # single_image_processing_with_box_prompt()
+    # text_prompt_single_image_processing()
+    # visual_prompt_single_image_processing()
     # text_prompt_batch_processing()
-    box_prompt_batch_processing()
-    # text_prompt_batch_processing()
+    # visual_prompt_batch_processing()
+    text_prompt_batch_processing()
     # custom_export()
 
 
